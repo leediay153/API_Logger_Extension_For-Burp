@@ -23,7 +23,7 @@ class CustomTableModelListener(TableModelListener):
         if e.getType() == TableModelEvent.UPDATE:
             row = e.getFirstRow()
             col = e.getColumn()
-            if col >= 4: 
+            if col >= 5:
                 column_name = self.extender.columns[col]
                 new_value = self.extender.table_model.getValueAt(row, col)
                 self.extender.api_data[row][column_name] = new_value
@@ -40,13 +40,19 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         self.default_output_file = os.path.normpath("D:/Extension/Pentest_log.csv")  # Đường dẫn mặc định
         self.api_data = []  # Lưu trữ dữ liệu API và trạng thái checkbox
         self.columns = [
-            "STT", "Date", "Method", "URL",
+            "STT", "Date", "Method", "Domain", "URL",
             "Missing level access control", "IDOR", "Privilege Escalation", "SQLi", "XSS",
             "CSRF", "Input Validation", "Sensitive Data Exposure",
             "No Resource Limit", "Other"
         ]
         self.csv_columns = [
-            "STT", "Date", "Method", "URL", "Body",
+            "STT", "Date", "Method", "Domain", "URL", "Body",
+            "Missing level access control", "IDOR", "Privilege Escalation", "SQLi", "XSS",
+            "CSRF", "Input Validation", "Sensitive Data Exposure",
+            "No Resource Limit", "Other"
+        ]
+        self.legacy_csv_columns = [
+            "STT", "Date", "Method", "Domain", "URL", "Body",
             "Missing level access control", "IDOR", "Privilege Escalation", "SQLi", "XSS",
             "CSRF", "Input Validation", "Sensitive Data Exposure",
             "No Resource Limit", "Other"
@@ -72,7 +78,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         self.table = JTable(self.table_model)
 
         # Đặt kiểu dữ liệu cho các cột checkbox
-        for i in range(4, len(self.columns)):  
+        for i in range(5, len(self.columns)):
             self.table.getColumnModel().getColumn(i).setCellEditor(self.table.getDefaultEditor(Boolean))
             self.table.getColumnModel().getColumn(i).setCellRenderer(self.table.getDefaultRenderer(Boolean))
 
@@ -121,7 +127,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
 
                 with open(input_file, 'r') as f:
                     reader = csv.DictReader(f)
-                    if reader.fieldnames != self.csv_columns:
+                    if reader.fieldnames not in (self.csv_columns, self.legacy_csv_columns):
                         print("Error loading CSV: Invalid column structure. Expected columns: {}".format(self.csv_columns))
                         return
 
@@ -129,6 +135,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                         stt = int(row["STT"])
                         timestamp = row["Date"]
                         method = row["Method"]
+                        domain = row.get("Domain", "")
                         url_path = row["URL"]
                         body = row["Body"]
 
@@ -137,6 +144,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                             "STT": stt,
                             "Timestamp": timestamp,
                             "Method": method,
+                            "Domain": domain,
                             "URL": url_path,
                             "Body": body,
                             "Missing level access control": row["Missing level access control"] == "OK",
@@ -155,7 +163,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
 
                         # Thêm vào bảng GUI
                         gui_row = [
-                            stt, timestamp, method, url_path,
+                            stt, timestamp, method, domain, url_path,
                             data["Missing level access control"],
                             data["IDOR"],
                             data["Privilege Escalation"],
@@ -205,6 +213,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                             data["STT"],
                             data["Timestamp"],
                             data["Method"],
+                            data["Domain"],
                             data["URL"],
                             data["Body"],
                             "OK" if data["Missing level access control"] else "Not Pass",
@@ -238,6 +247,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                 method = requestInfo.getMethod()
                 url_obj = requestInfo.getUrl()  # URL object
                 url_path = URL(str(url_obj)).getPath() or "/"  # Lấy path, mặc định "/" nếu rỗng
+                domain = url_obj.getHost()
                 key = method + url_path
 
                 if key in self.logged_requests:
@@ -253,6 +263,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                     "STT": stt,
                     "Timestamp": timestamp,
                     "Method": method,
+                    "Domain": domain,
                     "URL": url_path,
                     "Body": body,
                     "Missing level access control": True,
@@ -270,7 +281,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
 
                 # Thêm vào bảng GUI
                 row = [
-                    stt, timestamp, method, url_path,
+                    stt, timestamp, method, domain, url_path,
                     True, True, True, True, True,
                     True, True, True, True, True
                 ]
